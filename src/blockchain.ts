@@ -1,3 +1,6 @@
+import * as CryptoJS from 'crypto-js';
+import { broadcastLatest } from './p2p';
+
 /* Block strtucture */
 class Block {
   public index: number;
@@ -27,7 +30,16 @@ const calculateHash = (
   previousHash: string,
   timestamp: number,
   data: string
-): string => CryptoJS.SHA256(index + previousHash + timestamp + data).String();
+): string => CryptoJS.SHA256(index + previousHash + timestamp + data).toString();
+
+const calculateHashForBlock = (block: Block): string =>
+  calculateHash(block.index, block.previousHash, block.timestamp, block.data);
+
+const addBlock = (newBlock: Block) => {
+  if (isValidNewBlock(newBlock, getLatestBlock())) {
+    blockchain.push(newBlock);
+  }
+};
 
 const genesisBlock: Block = new Block(
   0,
@@ -55,13 +67,30 @@ const generateNextBlock = (blockData: string) => {
     nextTimestamp,
     blockData
   );
+  addBlock(newBlock);
+  broadcastLatest();
   return newBlock;
 };
 
-const blockchain: Block[] = [genesisBlock]; // in memory JS array to store blockchain
+let blockchain: Block[] = [genesisBlock]; // in memory JS array to store blockchain
+
+const getBlockchain = (): Block[] => blockchain;
+
+const getLatestBlock = (): Block => blockchain[blockchain.length - 1];
+
+/* validates single block */
+const isValidBlockStructure = (block: Block): boolean => {
+  return (
+    typeof block.index === "number" &&
+    typeof block.hash === "string" &&
+    typeof block.previousHash === "string" &&
+    typeof block.timestamp === "string" &&
+    typeof block.data === "string"
+  );
+};
 
 /* validates integrity of block */
-const isValidNewBlock = (newBlock: Block, previousBlock: Block) => {
+const isValidNewBlock = (newBlock: Block, previousBlock: Block): boolean => {
   if (previousBlock.index + 1 !== newBlock.index) {
     console.log("invalid index");
     return false;
@@ -78,17 +107,6 @@ const isValidNewBlock = (newBlock: Block, previousBlock: Block) => {
     return false;
   }
   return true;
-};
-
-/* validates single block */
-const isValidBlockStructure = (block: Block): boolean => {
-  return (
-    typeof block.index === "number" &&
-    typeof block.hash === "string" &&
-    typeof block.previousHash === "string" &&
-    typeof block.timestamp === "string" &&
-    typeof block.data === "string"
-  );
 };
 
 /* validate full chain of blocks */
@@ -111,6 +129,14 @@ const isValidChain = (blockchainToValidate: Block[]): boolean => {
   return true;
 };
 
+const addBlockToChain = (newBlock: Block) => {
+  if (isValidNewBlock(newBlock, getLatestBlock())) {
+    blockchain.push(newBlock);
+    return true;
+  }
+  return false;
+};
+
 /* choosing the longest chain */
 const replaceChain = (newBlocks: Block[]) => {
   if (isValidChain(newBlocks) && newBlocks.length > getBlockchain().length) {
@@ -124,5 +150,4 @@ const replaceChain = (newBlocks: Block[]) => {
   }
 };
 
-/* communcating with other nodes */
-
+export { Block, getBlockchain, getLatestBlock, generateNextBlock, isValidBlockStructure, replaceChain, addBlockToChain };
